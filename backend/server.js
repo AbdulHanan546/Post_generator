@@ -2,6 +2,7 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import aiRoutes from "./routes/aiRoutes.js";
 
 import authRoutes from "./routes/auth.js";
 import postRoutes from "./routes/post.js";
@@ -16,6 +17,7 @@ app.use(express.json());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postRoutes);
+app.use("/api/ai", aiRoutes);
 
 
 // MongoDB connection
