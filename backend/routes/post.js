@@ -98,6 +98,45 @@ router.delete("/:id", verifyToken, async (req, res) => {
     res.status(500).json({ error: "Failed to delete post", details: error.message });
   }
 });
+// ✅ Schedule a draft post
+router.post("/:id/schedule", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { scheduledAt, platform } = req.body;
+
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid Post ID" });
+    }
+
+    // Validate scheduled date
+    if (!scheduledAt || new Date(scheduledAt) < new Date()) {
+      return res.status(400).json({ error: "Scheduled date must be in the future" });
+    }
+
+    // Find the post that belongs to the logged in user
+    let post = await Post.findOne({ _id: id, user: req.user.id });
+    if (!post) {
+      return res.status(404).json({ error: "Post not found or unauthorized" });
+    }
+
+    // Only drafts can be scheduled
+    if (post.status !== "draft") {
+      return res.status(400).json({ error: "Only draft posts can be scheduled" });
+    }
+
+    post.scheduledAt = scheduledAt;
+    if (platform) post.platform = platform;
+    post.status = "scheduled";
+
+    await post.save();
+
+    res.status(200).json({ success: true, post });
+  } catch (error) {
+    console.error("Error scheduling post:", error);
+    res.status(500).json({ error: "Failed to schedule post", details: error.message });
+  }
+});
 
 router.get("/calendar", verifyToken, async (req, res) => {
   try {

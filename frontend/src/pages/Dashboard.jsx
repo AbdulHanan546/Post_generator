@@ -1,9 +1,8 @@
 // src/components/Dashboard.js
 
 import React, { useState, useEffect } from "react";
-import AIWriter from "./AIWriter";
-
 import axios from "axios";
+import AIWriter from "./AIWriter";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -11,30 +10,38 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ✅ Get userId & token from localStorage (saved in Login.jsx)
+  // ✅ Draft state for AIWriter persists across tabs
+  const [draftData, setDraftData] = useState({
+  topic: "",
+  tone: "Professional",
+  platform: "Twitter",
+  posts: [],
+  selectedCaption: null,
+});
+
+
   const token = localStorage.getItem("token");
   const userId = localStorage.getItem("userId");
 
-  // Fetch user's posts on mount
+  // ✅ central fetch function
+  const fetchPosts = async () => {
+    try {
+      const response = await axios.get("/api/posts", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPosts(response.data);
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching posts:", err);
+      setError("Failed to fetch posts");
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const response = await axios.get("/api/posts", {
-          headers: { Authorization: `Bearer ${token}` },
-          params: { user: userId },
-        });
-        setPosts(response.data);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching posts:", err);
-        setError("Failed to fetch posts");
-        setLoading(false);
-      }
-    };
     if (userId && token) fetchPosts();
   }, [userId, token]);
 
-  // Filter scheduled posts for overview
   const scheduledPosts = posts.filter((post) => post.status === "scheduled");
 
   return (
@@ -88,174 +95,167 @@ const Dashboard = () => {
       {/* Main Content */}
       <div className="p-6">
         {activeTab === "overview" && (
-          <div>
-            <h1 className="text-2xl font-bold mb-4">
-              Overview of Scheduled Posts
-            </h1>
-            {loading ? (
-              <p>Loading...</p>
-            ) : error ? (
-              <p className="text-red-500">{error}</p>
-            ) : scheduledPosts.length === 0 ? (
-              <p>No scheduled posts yet.</p>
-            ) : (
-              <ul className="space-y-4">
-                {scheduledPosts.map((post) => (
-                  <li key={post._id} className="bg-white p-4 rounded shadow">
-                    <p>
-                      <strong>Topic:</strong> {post.topic}
-                    </p>
-                    <p>
-                      <strong>Tone:</strong> {post.tone}
-                    </p>
-                    <p>
-                      <strong>Platform:</strong> {post.platform}
-                    </p>
-                    <p>
-                      <strong>Scheduled At:</strong>{" "}
-                      {new Date(post.scheduledAt).toLocaleString()}
-                    </p>
-                    <p>
-                      <strong>Selected Caption:</strong>{" "}
-                      {post.selectedCaption || "None selected"}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <Overview
+            posts={scheduledPosts}
+            loading={loading}
+            error={error}
+            token={token}
+            fetchPosts={fetchPosts}
+          />
         )}
 
-       {activeTab === "generate" && <AIWriter />}
+        {activeTab === "generate" && (
+  <AIWriter draftData={draftData} setDraftData={setDraftData} setPosts={setPosts} />
+)}
 
 
         {activeTab === "schedule" && (
-          <SchedulePost userId={userId} token={token} posts={posts} setPosts={setPosts} />
+          <SchedulePost
+            userId={userId}
+            token={token}
+            posts={posts}
+            fetchPosts={fetchPosts}
+          />
         )}
 
         {activeTab === "my-posts" && (
-          <MyPosts posts={posts} loading={loading} error={error} />
+          <MyPosts
+            posts={posts}
+            loading={loading}
+            error={error}
+            token={token}
+            fetchPosts={fetchPosts}
+          />
         )}
       </div>
     </div>
   );
 };
 
-// Generate Post Component
-// const GeneratePost = ({ userId, token, setPosts }) => {
-//   const [topic, setTopic] = useState("");
-//   const [tone, setTone] = useState("Professional");
-//   const [captions, setCaptions] = useState([]);
-//   const [selectedCaption, setSelectedCaption] = useState("");
-//   const [generating, setGenerating] = useState(false);
-//   const [error, setError] = useState(null);
+/* ============= Overview ============= */
+const Overview = ({ posts, loading, error, token, fetchPosts }) => {
+  const [editingPost, setEditingPost] = useState(null);
+  const [platform, setPlatform] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
 
-//   const handleGenerate = async () => {
-//     setGenerating(true);
-//     setError(null);
-//     try {
-//       // ✅ Fixed route (backend: /api/ai)
-//       const response = await axios.post(
-//         "/api/ai/generate",
-//         { topic, tone },
-//         { headers: { Authorization: `Bearer ${token}` } }
-//       );
-//       setCaptions(response.data.captions || []);
-//     } catch (err) {
-//       setError("Failed to generate captions");
-//     }
-//     setGenerating(false);
-//   };
+  const handleDeletePost = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+      await axios.delete(`/api/posts/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchPosts(); // ✅ refresh from server
+    } catch (err) {
+      alert("Failed to delete post");
+    }
+  };
 
-//   const handleSaveDraft = async () => {
-//     if (!selectedCaption) return alert("Select a caption first");
-//     try {
-//       const response = await axios.post(
-//         "/api/posts",
-//         {
-//           user: userId,
-//           topic,
-//           tone,
-//           captions,
-//           selectedCaption,
-//           status: "draft",
-//         },
-//         { headers: { Authorization: `Bearer ${token}` } }
-//       );
-//       setPosts((prev) => [...prev, response.data]);
-//       alert("Draft saved");
-//       setTopic("");
-//       setTone("Professional");
-//       setCaptions([]);
-//       setSelectedCaption("");
-//     } catch (err) {
-//       alert("Failed to save draft");
-//     }
-//   };
+  const handleEditPost = async (id) => {
+    try {
+      await axios.put(
+        `/api/posts/${id}`,
+        { platform, scheduledAt },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await fetchPosts(); // ✅ refresh from server
+      setEditingPost(null);
+    } catch (err) {
+      alert("Failed to edit post");
+    }
+  };
 
-//   return (
-//     <div>
-//       <h1 className="text-2xl font-bold mb-4">Generate Post</h1>
-//       <div className="space-y-4">
-//         <input
-//           type="text"
-//           placeholder="Topic"
-//           value={topic}
-//           onChange={(e) => setTopic(e.target.value)}
-//           className="border p-2 w-full"
-//         />
-//         <select
-//           value={tone}
-//           onChange={(e) => setTone(e.target.value)}
-//           className="border p-2 w-full"
-//         >
-//           <option>Professional</option>
-//           <option>Funny</option>
-//           <option>Casual</option>
-//           <option>Motivational</option>
-//         </select>
-//         <button
-//           onClick={handleGenerate}
-//           disabled={generating || !topic}
-//           className="bg-blue-500 text-white p-2 rounded"
-//         >
-//           {generating ? "Generating..." : "Generate Captions"}
-//         </button>
-//         {error && <p className="text-red-500">{error}</p>}
-//         {captions.length > 0 && (
-//           <div>
-//             <h2 className="text-xl font-semibold">Generated Captions:</h2>
-//             <ul className="space-y-2">
-//               {captions.map((cap, idx) => (
-//                 <li key={idx}>
-//                   <label>
-//                     <input
-//                       type="radio"
-//                       checked={selectedCaption === cap}
-//                       onChange={() => setSelectedCaption(cap)}
-//                     />
-//                     {cap}
-//                   </label>
-//                 </li>
-//               ))}
-//             </ul>
-//             <button
-//               onClick={handleSaveDraft}
-//               className="bg-green-500 text-white p-2 rounded mt-4"
-//             >
-//               Save as Draft
-//             </button>
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   );
-// };
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p className="text-red-500">{error}</p>;
+  if (posts.length === 0) return <p>No scheduled posts yet.</p>;
 
-// Schedule Post Component
-const SchedulePost = ({ userId, token, posts, setPosts }) => {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-4">Overview of Scheduled Posts</h1>
+      <ul className="space-y-4">
+        {posts.map((post) => (
+          <li key={post._id || post.id} className="bg-white p-4 rounded shadow">
+            <p><strong>Topic:</strong> {post.topic}</p>
+            <p><strong>Tone:</strong> {post.tone}</p>
+            <p><strong>Platform:</strong> {post.platform}</p>
+            <p>
+              <strong>Scheduled At:</strong>{" "}
+              {new Date(post.scheduledAt).toLocaleString()}
+            </p>
+            <p><strong>Selected Caption:</strong> {post.selectedCaption || "None"}</p>
+
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={() => handleDeletePost(post._id || post.id)}
+                className="bg-red-500 text-white px-3 py-1 rounded"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => {
+                  setEditingPost(post._id || post.id);
+                  setPlatform(post.platform);
+                  setScheduledAt(
+                    new Date(post.scheduledAt).toISOString().slice(0, 16)
+                  );
+                }}
+                className="bg-yellow-500 text-white px-3 py-1 rounded"
+              >
+                Edit
+              </button>
+            </div>
+
+            {editingPost === (post._id || post.id) && (
+              <div className="mt-4 p-4 border rounded bg-gray-50">
+                <select
+                  value={platform}
+                  onChange={(e) => setPlatform(e.target.value)}
+                  className="border p-2 w-full mb-2"
+                >
+                  <option>Instagram</option>
+                  <option>Facebook</option>
+                  <option>Twitter</option>
+                  <option>LinkedIn</option>
+                </select>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  min={new Date().toISOString().slice(0, 16)}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  className="border p-2 w-full mb-2"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (new Date(scheduledAt) < new Date()) {
+                        alert("Cannot select a past date/time");
+                        return;
+                      }
+                      handleEditPost(post._id || post.id);
+                    }}
+                    className="bg-green-500 text-white px-3 py-1 rounded"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingPost(null)}
+                    className="bg-gray-400 text-white px-3 py-1 rounded"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+/* ============= SchedulePost ============= */
+const SchedulePost = ({ userId, token, posts, fetchPosts }) => {
   const [selectedPostId, setSelectedPostId] = useState("");
-  const [platform, setPlatform] = useState("Instagram");
+  const [platform, setPlatform] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [scheduling, setScheduling] = useState(false);
   const [error, setError] = useState(null);
@@ -264,23 +264,22 @@ const SchedulePost = ({ userId, token, posts, setPosts }) => {
 
   const handleSchedule = async () => {
     if (!selectedPostId || !scheduledAt) return alert("Select post and date");
+    if (new Date(scheduledAt) < new Date())
+      return alert("Cannot schedule in the past");
     setScheduling(true);
     setError(null);
     try {
-      const response = await axios.put(
-        `/api/posts/${selectedPostId}`,
-        { platform, scheduledAt: new Date(scheduledAt), status: "scheduled" },
+      await axios.post(
+        `/api/posts/${selectedPostId}/schedule`,
+        { platform, scheduledAt: new Date(scheduledAt) },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setPosts((prev) =>
-        prev.map((p) => (p._id === selectedPostId ? response.data : p))
-      );
-      alert("Post scheduled");
+      await fetchPosts(); // ✅ refresh from server
       setSelectedPostId("");
-      setPlatform("Instagram");
       setScheduledAt("");
+      alert("Post scheduled");
     } catch (err) {
-      setError("Failed to schedule post");
+      setError(err.response?.data?.error || "Failed to schedule post");
     }
     setScheduling(false);
   };
@@ -299,24 +298,16 @@ const SchedulePost = ({ userId, token, posts, setPosts }) => {
           >
             <option value="">Select a Draft Post</option>
             {draftPosts.map((post) => (
-              <option key={post._id} value={post._id}>
+              <option key={post._id || post.id} value={post._id || post.id}>
                 {post.topic} - {post.selectedCaption?.substring(0, 20)}...
               </option>
             ))}
           </select>
-          <select
-            value={platform}
-            onChange={(e) => setPlatform(e.target.value)}
-            className="border p-2 w-full"
-          >
-            <option>Instagram</option>
-            <option>LinkedIn</option>
-            <option>Twitter</option>
-            <option>Facebook</option>
-          </select>
+
           <input
             type="datetime-local"
             value={scheduledAt}
+            min={new Date().toISOString().slice(0, 16)}
             onChange={(e) => setScheduledAt(e.target.value)}
             className="border p-2 w-full"
           />
@@ -334,43 +325,31 @@ const SchedulePost = ({ userId, token, posts, setPosts }) => {
   );
 };
 
-// My Posts Component
+/* ============= MyPosts ============= */
 const MyPosts = ({ posts, loading, error }) => {
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p className="text-red-500">{error}</p>;
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">My Posts</h1>
-      {loading ? (
-        <p>Loading...</p>
-      ) : error ? (
-        <p className="text-red-500">{error}</p>
-      ) : posts.length === 0 ? (
+      {posts.length === 0 ? (
         <p>No posts yet.</p>
       ) : (
         <ul className="space-y-4">
           {posts.map((post) => (
-            <li key={post._id} className="bg-white p-4 rounded shadow">
-              <p>
-                <strong>Topic:</strong> {post.topic}
-              </p>
-              <p>
-                <strong>Tone:</strong> {post.tone}
-              </p>
-              <p>
-                <strong>Platform:</strong> {post.platform || "N/A"}
-              </p>
+            <li key={post._id || post.id} className="bg-white p-4 rounded shadow">
+              <p><strong>Topic:</strong> {post.topic}</p>
+              <p><strong>Tone:</strong> {post.tone}</p>
+              <p><strong>Platform:</strong> {post.platform || "N/A"}</p>
               <p>
                 <strong>Scheduled At:</strong>{" "}
                 {post.scheduledAt
                   ? new Date(post.scheduledAt).toLocaleString()
                   : "N/A"}
               </p>
-              <p>
-                <strong>Status:</strong> {post.status}
-              </p>
-              <p>
-                <strong>Selected Caption:</strong>{" "}
-                {post.selectedCaption || "None"}
-              </p>
+              <p><strong>Status:</strong> {post.status}</p>
+              <p><strong>Selected Caption:</strong> {post.selectedCaption || "None"}</p>
             </li>
           ))}
         </ul>
