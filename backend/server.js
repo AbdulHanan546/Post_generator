@@ -11,7 +11,16 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+  origin: [
+    "https://post-generator-psi-two.vercel.app/", // production
+    "http://localhost:3000",              // local dev
+  ],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 // Routes
