@@ -13,7 +13,7 @@ const app = express();
 // Middleware
 const corsOptions = {
   origin: [
-    "https://post-generator-psi-two.vercel.app/", // production
+    "https://post-generator-psi-two.vercel.app", // production
     "http://localhost:3000",              // local dev
   ],
   credentials: true,
