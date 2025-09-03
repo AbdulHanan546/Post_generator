@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import axios from "../services/axios";
 import { FiClipboard, FiCheck } from "react-icons/fi";
 
 function AIWriter({ draftData, setDraftData,setPosts }) {
@@ -20,7 +20,7 @@ function AIWriter({ draftData, setDraftData,setPosts }) {
     setDraftData((prev) => ({ ...prev, posts: [], selectedCaption: null }));
 
     try {
-      const res = await axios.post("http://localhost:5000/api/ai/generate-post", {
+      const res = await axios.post("/api/ai/generate-post", {
         topic,
         tone,
         platform,
@@ -51,7 +51,7 @@ function AIWriter({ draftData, setDraftData,setPosts }) {
           const token = localStorage.getItem("token");  // ✅ fix here
 
       const res = await axios.post(
-        "http://localhost:5000/api/posts",
+        "/api/posts",
         {
           topic: draftData.topic,
           tone: draftData.tone,

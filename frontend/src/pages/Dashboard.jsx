@@ -1,7 +1,7 @@
 // src/components/Dashboard.js
 
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from "../services/axios";
 import AIWriter from "./AIWriter";
 
 const Dashboard = () => {
