@@ -26,7 +26,7 @@ export default function Login() {
       alert("Login successful!");
       navigate("/Dashboard");
     } catch (err) {
-      alert(err.response?.data?.error || "Something went wrong");
+      alert(JSON.stringify(err.response?.data || err.message));
     }
   };
 
